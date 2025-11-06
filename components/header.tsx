@@ -5,7 +5,7 @@ import { Menu, X, CircleArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useState } from "react"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { cn, mapWordPressUrlToNextRoute } from "@/lib/utils"
 import Image from "next/image"
 import { WordPressHeader } from "@/lib/wordpress"
 
@@ -80,12 +80,17 @@ export function Header({ headerData }: HeaderProps) {
           <nav className="hidden lg:flex items-center gap-6 lg:gap-8 absolute left-1/2 -translate-x-1/2">
             {menuItems && menuItems.length > 0 ? (
               menuItems.map((item) => {
-                const href = item.menu_item_link?.url || "#"
+                const wordPressUrl = item.menu_item_link?.url || "#"
+                const href = mapWordPressUrlToNextRoute(wordPressUrl)
+                const isActive = pathname === href || (href === "/" && pathname === "/")
                 return (
                   <Link
                     key={item.menu_item_name}
                     href={href}
-                    className="text-[12px] font-medium transition-colors text-white hover:text-[#B5FF00] whitespace-nowrap uppercase"
+                    className={cn(
+                      "text-[12px] font-medium transition-colors whitespace-nowrap uppercase",
+                      isActive ? "text-[#B5FF00]" : "text-white hover:text-[#B5FF00]"
+                    )}
                   >
                     {item.menu_item_name}
                   </Link>
@@ -148,12 +153,17 @@ export function Header({ headerData }: HeaderProps) {
               <nav className="flex flex-col space-y-4">
                 {menuItems && menuItems.length > 0 ? (
                   menuItems.map((item) => {
-                    const href = item.menu_item_link?.url || "#"
+                    const wordPressUrl = item.menu_item_link?.url || "#"
+                    const href = mapWordPressUrlToNextRoute(wordPressUrl)
+                    const isActive = pathname === href || (href === "/" && pathname === "/")
                     return (
                       <Link
                         key={item.menu_item_name}
                         href={href}
-                        className="text-[12px] font-medium transition-colors text-white hover:text-[#B5FF00] py-2 uppercase"
+                        className={cn(
+                          "text-[12px] font-medium transition-colors py-2 uppercase",
+                          isActive ? "text-[#B5FF00]" : "text-white hover:text-[#B5FF00]"
+                        )}
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         {item.menu_item_name}
