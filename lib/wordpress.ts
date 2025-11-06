@@ -252,6 +252,36 @@ export interface ACFHeroFields {
   service_button_link?: ACFMenuLink
 }
 
+export interface ACFContactIconGroup {
+  acf_fc_layout: string
+  name?: string
+  description?: string
+  link?: string
+}
+
+export interface ACFContactFields {
+  header_image?: ACFBackgroundImage
+  heading?: string
+  subheading?: string
+  description?: string
+  icon_groups?: ACFContactIconGroup[]
+  map_link?: string
+}
+
+export interface ACFGalleryAlbum {
+  acf_fc_layout: string
+  album_cover_image?: ACFBackgroundImage
+  album_name?: string
+  gallery_images?: ACFBackgroundImage[]
+}
+
+export interface ACFGalleryFields {
+  heading?: string
+  subheading?: string
+  background_image?: ACFBackgroundImage
+  gallery_items?: ACFGalleryAlbum[]
+}
+
 export interface WordPressPage {
   id: number
   date: string
@@ -274,7 +304,7 @@ export interface WordPressPage {
     protected: boolean
   }
   featured_media: number
-  acf?: ACFHeroFields
+  acf?: ACFHeroFields | ACFContactFields | ACFGalleryFields
 }
 
 export interface ACFMenuLink {
@@ -600,6 +630,100 @@ export async function fetchWordPressHeader(): Promise<WordPressHeader | null> {
   }
 }
 
+export async function fetchWordPressGalleryPage(): Promise<WordPressPage | null> {
+  try {
+    if (!WORDPRESS_API_URL) {
+      console.error('NEXT_PUBLIC_WORDPRESS_API_URL is not set in environment variables')
+      return null
+    }
+
+    const url = `${WORDPRESS_API_URL}/wp-json/wp/v2/pages?slug=gallery`
+    
+    console.log('Fetching WordPress gallery page from:', url)
+    
+    const requestHeaders: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    
+    if (WORDPRESS_API_KEY) {
+      requestHeaders['Authorization'] = `Bearer ${WORDPRESS_API_KEY}`
+    }
+    
+    const response = await fetch(url, {
+      headers: requestHeaders,
+      next: { revalidate: 300 },
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`WordPress API error (${response.status}):`, response.statusText, errorText)
+      throw new Error(`WordPress API error: ${response.status} ${response.statusText}`)
+    }
+    
+    const pages = await response.json()
+    
+    if (!pages || pages.length === 0) {
+      console.log('No gallery page found')
+      return null
+    }
+    
+    return pages[0] as WordPressPage
+  } catch (error) {
+    console.error('Error fetching WordPress gallery page:', error)
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+    }
+    return null
+  }
+}
+
+export async function fetchWordPressContactPage(): Promise<WordPressPage | null> {
+  try {
+    if (!WORDPRESS_API_URL) {
+      console.error('NEXT_PUBLIC_WORDPRESS_API_URL is not set in environment variables')
+      return null
+    }
+
+    const url = `${WORDPRESS_API_URL}/wp-json/wp/v2/pages?slug=contact-us`
+    
+    console.log('Fetching WordPress contact page from:', url)
+    
+    const requestHeaders: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+    
+    if (WORDPRESS_API_KEY) {
+      requestHeaders['Authorization'] = `Bearer ${WORDPRESS_API_KEY}`
+    }
+    
+    const response = await fetch(url, {
+      headers: requestHeaders,
+      next: { revalidate: 300 },
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`WordPress API error (${response.status}):`, response.statusText, errorText)
+      throw new Error(`WordPress API error: ${response.status} ${response.statusText}`)
+    }
+    
+    const pages = await response.json()
+    
+    if (!pages || pages.length === 0) {
+      console.log('No contact page found')
+      return null
+    }
+    
+    return pages[0] as WordPressPage
+  } catch (error) {
+    console.error('Error fetching WordPress contact page:', error)
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+    }
+    return null
+  }
+}
+
 export async function fetchWordPressFooter(): Promise<WordPressFooter | null> {
   try {
     if (!WORDPRESS_API_URL) {
@@ -836,7 +960,7 @@ export async function fetchHeroContent(): Promise<HeroContent> {
       }
     }
     
-    const acf = page.acf
+    const acf = page.acf as ACFHeroFields | undefined
     
     // If ACF is not available, warn and use defaults
     if (!acf) {
@@ -896,20 +1020,20 @@ export async function fetchSameDayServiceContent(): Promise<SameDayServiceConten
       return {}
     }
     
-    const acf = page.acf
-    
-    return {
-      serviceName: acf?.service_name || undefined,
-      serviceDescription: acf?.service_description || undefined,
-      serviceImage: acf?.service_image ? {
-        url: acf.service_image.url,
-        alt: acf.service_image.alt || undefined,
-      } : undefined,
-      serviceSubheading: acf?.service_subheading || undefined,
-      serviceHeading: acf?.service_heading || undefined,
-      serviceButtonText: acf?.service_button_text || undefined,
-      serviceButtonLink: acf?.service_button_link?.url || undefined,
-    }
+        const acf = page.acf as ACFHeroFields | undefined
+        
+        return {
+          serviceName: acf?.service_name || undefined,
+          serviceDescription: acf?.service_description || undefined,
+          serviceImage: acf?.service_image ? {
+            url: acf.service_image.url,
+            alt: acf.service_image.alt || undefined,
+          } : undefined,
+          serviceSubheading: acf?.service_subheading || undefined,
+          serviceHeading: acf?.service_heading || undefined,
+          serviceButtonText: acf?.service_button_text || undefined,
+          serviceButtonLink: acf?.service_button_link?.url || undefined,
+        }
   } catch (error) {
     console.error('Error fetching same day service content:', error)
     if (error instanceof Error) {
