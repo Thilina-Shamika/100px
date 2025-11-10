@@ -4,9 +4,10 @@ import { Metadata } from "next"
 import Image from "next/image"
 import { ServiceGallery } from "@/components/service-gallery"
 import { Button } from "@/components/ui/button"
-import { CircleArrowRight, ArrowLeft } from "lucide-react"
+import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { generateSlug } from "@/lib/utils"
+import { ContactUsModalTrigger } from "@/components/contact-us-modal-trigger"
 
 interface AdditionalServiceCompanyPageProps {
   params: Promise<{ slug: string; companySlug: string }>
@@ -89,8 +90,7 @@ export default async function AdditionalServiceCompanyPage({ params }: Additiona
   const serviceGallery = service.acf?.gallery || []
   const companyLogo = service.acf?.company_logo
   
-  const buttonText = service.acf?.button_text || "Contact Us"
-  const buttonLink = service.acf?.button_link?.url || "#"
+  const buttonText = service.acf?.button_text || "Contact Us For The Price"
 
   return (
     <div className="bg-black min-h-screen text-white">
@@ -165,16 +165,7 @@ export default async function AdditionalServiceCompanyPage({ params }: Additiona
 
             {/* Button */}
             <div className="pt-4">
-              <Button
-                asChild
-                size="lg"
-                className="bg-[#B5FF00] hover:bg-[#9FE000] text-black font-semibold shadow-lg hover:shadow-[#B5FF00]/50 group"
-              >
-                <Link href={buttonLink} className="flex items-center gap-2">
-                  <CircleArrowRight className="group-hover:translate-x-1 transition-transform" />
-                  <span className="uppercase font-medium">{buttonText}</span>
-                </Link>
-              </Button>
+              <ContactUsModalTrigger label={buttonText} />
             </div>
           </div>
         </div>

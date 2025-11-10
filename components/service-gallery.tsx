@@ -73,6 +73,7 @@ export function ServiceGallery({ gallery }: ServiceGalleryProps) {
           blurToFocus={true}
           colorShiftOnHover={false}
           onItemClick={handleItemClick}
+          disableInitialAnimation
         />
       </div>
 

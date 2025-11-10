@@ -79,6 +79,7 @@ export interface MasonryProps {
   blurToFocus?: boolean
   colorShiftOnHover?: boolean
   onItemClick?: (item: MasonryItem) => void
+  disableInitialAnimation?: boolean
 }
 
 const Masonry: React.FC<MasonryProps> = ({
@@ -91,7 +92,8 @@ const Masonry: React.FC<MasonryProps> = ({
   hoverScale = 0.95,
   blurToFocus = true,
   colorShiftOnHover = false,
-  onItemClick
+  onItemClick,
+  disableInitialAnimation = false
 }) => {
   const columns = useMedia(
     ['(min-width:1500px)', '(min-width:1000px)', '(min-width:600px)', '(min-width:400px)'],
@@ -101,6 +103,13 @@ const Masonry: React.FC<MasonryProps> = ({
 
   const [containerRef, { width }] = useMeasure<HTMLDivElement>()
   const [imagesReady, setImagesReady] = useState(false)
+  
+  // If initial animation is disabled, don't block on image preloading
+  useEffect(() => {
+    if (disableInitialAnimation) {
+      setImagesReady(true)
+    }
+  }, [disableInitialAnimation])
 
   const getInitialPosition = (item: GridItem) => {
     const containerRect = containerRef.current?.getBoundingClientRect()
@@ -132,8 +141,9 @@ const Masonry: React.FC<MasonryProps> = ({
   }
 
   useEffect(() => {
+    if (disableInitialAnimation) return
     preloadImages(items.map(i => i.img)).then(() => setImagesReady(true))
-  }, [items])
+  }, [items, disableInitialAnimation])
 
   const grid = useMemo<GridItem[]>(() => {
     if (!width) return []
@@ -156,13 +166,24 @@ const Masonry: React.FC<MasonryProps> = ({
   const hasMounted = useRef(false)
 
   useLayoutEffect(() => {
-    if (!imagesReady) return
+    if (!imagesReady && !disableInitialAnimation) return
 
     grid.forEach((item, index) => {
       const selector = `[data-key="${item.id}"]`
       const animProps = { x: item.x, y: item.y, width: item.w, height: item.h }
 
       if (!hasMounted.current) {
+        if (disableInitialAnimation) {
+          gsap.set(
+            selector,
+            {
+              opacity: 1,
+              ...animProps,
+              ...(blurToFocus ? { filter: 'blur(0px)' } : {})
+            }
+          )
+          return
+        }
         const start = getInitialPosition(item)
         gsap.fromTo(
           selector,
@@ -194,7 +215,7 @@ const Masonry: React.FC<MasonryProps> = ({
     })
 
     hasMounted.current = true
-  }, [grid, imagesReady, stagger, animateFrom, blurToFocus, duration, ease])
+  }, [grid, imagesReady, stagger, animateFrom, blurToFocus, duration, ease, disableInitialAnimation])
 
   const handleMouseEnter = (id: string, element: HTMLElement) => {
     if (scaleOnHover) {
