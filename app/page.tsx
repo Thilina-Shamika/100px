@@ -1,10 +1,11 @@
-import { fetchHeroContent, fetchWordPressServices, fetchSameDayServiceContent, fetchWordPressAdditionalServices, fetchWordPressTestimonials } from "@/lib/wordpress"
+import { fetchHeroContent, fetchWordPressServices, fetchWordPressWhyUs, fetchWordPressAdditionalServices, fetchWordPressTestimonials, fetchWordPressFAQ } from "@/lib/wordpress"
 import { Hero } from "@/components/hero"
 import { AnimatedSection } from "@/components/animated-section"
 import { ServicesGrid } from "@/components/services-grid"
-import { SameDayService } from "@/components/same-day-service"
+import { WhyUs } from "@/components/why-us"
 import { AdditionalServices } from "@/components/additional-services"
 import { Testimonials } from "@/components/testimonials"
+import { FAQ } from "@/components/faq"
 import { Metadata } from "next"
 
 export const metadata: Metadata = {
@@ -13,12 +14,13 @@ export const metadata: Metadata = {
 }
 
 export default async function Home() {
-  const [heroContent, services, sameDayServiceContent, additionalServices, testimonials] = await Promise.all([
+  const [heroContent, services, whyUsData, additionalServices, testimonials, faqData] = await Promise.all([
     fetchHeroContent(),
     fetchWordPressServices({ fetchAll: true }),
-    fetchSameDayServiceContent(),
+    fetchWordPressWhyUs(),
     fetchWordPressAdditionalServices({ fetchAll: true }),
     fetchWordPressTestimonials({ fetchAll: true }),
+    fetchWordPressFAQ(),
   ])
 
   return (
@@ -45,20 +47,12 @@ export default async function Home() {
         </section>
       )}
 
-          {/* Same Day Service Section */}
-          {sameDayServiceContent.serviceName && (
-            <AnimatedSection delay={0.3}>
-              <SameDayService
-                serviceName={sameDayServiceContent.serviceName}
-                serviceDescription={sameDayServiceContent.serviceDescription}
-                serviceImage={sameDayServiceContent.serviceImage}
-                serviceSubheading={sameDayServiceContent.serviceSubheading}
-                serviceHeading={sameDayServiceContent.serviceHeading}
-                serviceButtonText={sameDayServiceContent.serviceButtonText}
-                serviceButtonLink={sameDayServiceContent.serviceButtonLink}
-              />
-            </AnimatedSection>
-          )}
+      {/* Why Us Section */}
+      {whyUsData && (
+        <AnimatedSection delay={0.3}>
+          <WhyUs whyUsData={whyUsData} />
+        </AnimatedSection>
+      )}
 
           {/* Additional Services Section */}
           {additionalServices.length > 0 && (
@@ -75,6 +69,13 @@ export default async function Home() {
           {testimonials.length > 0 && (
             <AnimatedSection delay={0.5}>
               <Testimonials testimonials={testimonials} />
+            </AnimatedSection>
+          )}
+
+          {/* FAQ Section */}
+          {faqData && (
+            <AnimatedSection delay={0.6}>
+              <FAQ faqData={faqData} />
             </AnimatedSection>
           )}
     </div>

@@ -77,6 +77,70 @@ if (!WORDPRESS_API_URL) {
   console.warn('NEXT_PUBLIC_WORDPRESS_API_URL is not set')
 }
 
+const WORDPRESS_MEDIA_BASE_REFERENCE =
+  process.env.NEXT_PUBLIC_WORDPRESS_MEDIA_BASE_URL || WORDPRESS_API_URL
+
+function getWordPressMediaBase(): string | null {
+  if (!WORDPRESS_MEDIA_BASE_REFERENCE) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(WORDPRESS_MEDIA_BASE_REFERENCE)
+    return parsed.origin
+  } catch (error) {
+    console.warn('Unable to determine WordPress media base URL:', error)
+    return null
+  }
+}
+
+function shouldRewriteMediaHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase()
+  return (
+    normalized.endsWith('.local') ||
+    normalized === 'localhost' ||
+    normalized === '127.0.0.1'
+  )
+}
+
+export function normalizeWordPressMediaUrl(url?: string | null): string | undefined {
+  if (!url) {
+    return undefined
+  }
+
+  const trimmedUrl = url.trim()
+
+  if (!trimmedUrl) {
+    return undefined
+  }
+
+  const mediaBase = getWordPressMediaBase()
+
+  let parsed: URL
+  try {
+    parsed = mediaBase ? new URL(trimmedUrl, mediaBase) : new URL(trimmedUrl)
+  } catch {
+    if (mediaBase) {
+      return `${mediaBase.replace(/\/$/, '')}/${trimmedUrl.replace(/^\/+/, '')}`
+    }
+    return trimmedUrl
+  }
+
+  if (shouldRewriteMediaHost(parsed.hostname)) {
+    if (!mediaBase) {
+      return parsed.toString()
+    }
+
+    const baseUrl = new URL(mediaBase)
+    parsed.protocol = baseUrl.protocol
+    parsed.hostname = baseUrl.hostname
+    parsed.port = baseUrl.port
+    return parsed.toString()
+  }
+
+  return parsed.toString()
+}
+
 export async function fetchWordPressPosts(params?: {
   per_page?: number
   page?: number
@@ -234,6 +298,31 @@ export interface ACFBackgroundImage {
       height: number
     }
   }
+}
+
+function normalizeAcfBackgroundImage(image?: ACFBackgroundImage | null): ACFBackgroundImage | undefined {
+  if (!image) {
+    return image ?? undefined
+  }
+
+  const normalizedImage: ACFBackgroundImage = {
+    ...image,
+    url: normalizeWordPressMediaUrl(image.url) ?? image.url,
+  }
+
+  if (image.sizes) {
+    normalizedImage.sizes = Object.fromEntries(
+      Object.entries(image.sizes).map(([sizeKey, sizeValue]) => [
+        sizeKey,
+        {
+          ...sizeValue,
+          url: normalizeWordPressMediaUrl(sizeValue.url) ?? sizeValue.url,
+        },
+      ]),
+    )
+  }
+
+  return normalizedImage
 }
 
 export interface ACFHeroFields {
@@ -531,6 +620,74 @@ export interface WordPressTestimonial {
   acf?: ACFTestimonialFields
 }
 
+export interface ACFWhyUsItem {
+  acf_fc_layout: string
+  number?: string
+  why_us_heading?: string
+  description?: string
+}
+
+export interface ACFWhyUsFields {
+  heading?: string
+  sub_heading?: string
+  description?: string
+  why_us_?: ACFWhyUsItem[]
+}
+
+export interface WordPressWhyUs {
+  id: number
+  date: string
+  date_gmt: string
+  modified: string
+  modified_gmt: string
+  slug: string
+  status: string
+  type: string
+  link: string
+  title: {
+    rendered: string
+  }
+  content: {
+    rendered: string
+    protected: boolean
+  }
+  featured_media: number
+  acf?: ACFWhyUsFields
+}
+
+export interface ACFFAQItem {
+  acf_fc_layout: string
+  question?: string
+  answer?: string
+}
+
+export interface ACFFAQFields {
+  heading?: string
+  sub_heading?: string
+  faq?: ACFFAQItem[]
+}
+
+export interface WordPressFAQ {
+  id: number
+  date: string
+  date_gmt: string
+  modified: string
+  modified_gmt: string
+  slug: string
+  status: string
+  type: string
+  link: string
+  title: {
+    rendered: string
+  }
+  content: {
+    rendered: string
+    protected: boolean
+  }
+  featured_media: number
+  acf?: ACFFAQFields
+}
+
 export async function fetchWordPressPage(slug: string): Promise<WordPressPage | null> {
   try {
     if (!WORDPRESS_API_URL) {
@@ -626,7 +783,17 @@ export async function fetchWordPressHeader(): Promise<WordPressHeader | null> {
       buttonText: header.acf?.quick_button_text,
     })
     
-    return header
+    const normalizedHeader: WordPressHeader = header.acf
+      ? {
+          ...header,
+          acf: {
+            ...header.acf,
+            logo: normalizeAcfBackgroundImage(header.acf.logo),
+          },
+        }
+      : header
+    
+    return normalizedHeader
   } catch (error) {
     console.error('Error fetching WordPress header:', error)
     if (error instanceof Error) {
@@ -825,7 +992,17 @@ export async function fetchWordPressFooter(): Promise<WordPressFooter | null> {
       socialMediaCount: footer.acf?.social_media?.length,
     })
     
-    return footer
+    const normalizedFooter: WordPressFooter = footer.acf
+      ? {
+          ...footer,
+          acf: {
+            ...footer.acf,
+            logo: normalizeAcfBackgroundImage(footer.acf.logo),
+          },
+        }
+      : footer
+    
+    return normalizedFooter
   } catch (error) {
     console.error('Error fetching WordPress footer:', error)
     if (error instanceof Error) {
@@ -1341,11 +1518,135 @@ export async function fetchWordPressTestimonials(params?: {
     console.log(`Successfully fetched ${data.length} testimonials from WordPress`)
     return data as WordPressTestimonial[]
   } catch (error) {
-    console.error('Error fetching WordPress testimonials:', error)
+      console.error('Error fetching WordPress testimonials:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+      }
+      return []
+    }
+  }
+
+export async function fetchWordPressWhyUs(slug?: string): Promise<WordPressWhyUs | null> {
+  try {
+    if (!WORDPRESS_API_URL) {
+      console.error('NEXT_PUBLIC_WORDPRESS_API_URL is not set in environment variables')
+      return null
+    }
+
+    const targetSlug = slug || 'why-choose'
+    const url = `${WORDPRESS_API_URL}/wp-json/wp/v2/why-us?slug=${targetSlug}`
+
+    console.log('Fetching WordPress why-us from:', url)
+
+    const requestHeaders: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    if (WORDPRESS_API_KEY) {
+      requestHeaders['Authorization'] = `Bearer ${WORDPRESS_API_KEY}`
+    }
+
+    const response = await fetch(url, {
+      headers: requestHeaders,
+      next: { revalidate: 300 },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`WordPress API error (${response.status}):`, response.statusText, errorText)
+      throw new Error(`WordPress API error: ${response.status} ${response.statusText}`)
+    }
+
+    const whyUsData = await response.json()
+
+    if (!whyUsData || whyUsData.length === 0) {
+      console.log('No why-us found')
+      return null
+    }
+
+    const whyUs = whyUsData[0] as WordPressWhyUs
+    
+    // Normalize ACF fields
+    const normalizedWhyUs: WordPressWhyUs = whyUs.acf
+      ? {
+          ...whyUs,
+          acf: {
+            ...whyUs.acf,
+          },
+        }
+      : whyUs
+
+    console.log('Parsed Why Us:', {
+      id: normalizedWhyUs.id,
+      hasACF: !!normalizedWhyUs.acf,
+      heading: normalizedWhyUs.acf?.heading,
+      itemsCount: normalizedWhyUs.acf?.why_us_?.length,
+    })
+
+    return normalizedWhyUs
+  } catch (error) {
+    console.error('Error fetching WordPress why-us:', error)
     if (error instanceof Error) {
       console.error('Error message:', error.message)
     }
-    return []
+    return null
+  }
+}
+
+export async function fetchWordPressFAQ(slug?: string): Promise<WordPressFAQ | null> {
+  try {
+    if (!WORDPRESS_API_URL) {
+      console.error('NEXT_PUBLIC_WORDPRESS_API_URL is not set in environment variables')
+      return null
+    }
+
+    const targetSlug = slug || 'faq'
+    const url = `${WORDPRESS_API_URL}/wp-json/wp/v2/faq?slug=${targetSlug}`
+
+    console.log('Fetching WordPress FAQ from:', url)
+
+    const requestHeaders: HeadersInit = {
+      'Content-Type': 'application/json',
+    }
+
+    if (WORDPRESS_API_KEY) {
+      requestHeaders['Authorization'] = `Bearer ${WORDPRESS_API_KEY}`
+    }
+
+    const response = await fetch(url, {
+      headers: requestHeaders,
+      next: { revalidate: 300 },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`WordPress API error (${response.status}):`, response.statusText, errorText)
+      throw new Error(`WordPress API error: ${response.status} ${response.statusText}`)
+    }
+
+    const faqData = await response.json()
+
+    if (!faqData || faqData.length === 0) {
+      console.log('No FAQ found')
+      return null
+    }
+
+    const faq = faqData[0] as WordPressFAQ
+
+    console.log('Parsed FAQ:', {
+      id: faq.id,
+      hasACF: !!faq.acf,
+      heading: faq.acf?.heading,
+      itemsCount: faq.acf?.faq?.length,
+    })
+
+    return faq
+  } catch (error) {
+    console.error('Error fetching WordPress FAQ:', error)
+    if (error instanceof Error) {
+      console.error('Error message:', error.message)
+    }
+    return null
   }
 }
 
